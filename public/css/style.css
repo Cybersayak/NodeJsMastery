@@ -1,0 +1,123 @@
+#gallery {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    text-align: center;
+}
+#images-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+/* 
+.image-card {
+    position: relative;
+    width: 150px;
+    height: 150px;
+}
+.image-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+} 
+.favorite {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: yellow;
+    padding: 5px;
+    cursor: pointer;
+}*/
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* New wrapper for centering controls */
+.controls-wrapper {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+    padding: 0 20px;
+}
+
+.controls {
+    display: flex;
+    gap: 15px;
+    max-width: 600px; /* Adjust this value as needed */
+    width: 100%;
+    justify-content: center;
+}
+
+#search {
+    width: 300px; /* Fixed width for search input */
+    padding: 10px 15px;
+    border: 2px solid #ddd;
+    border-radius: 25px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+#search:focus {
+    border-color: #007bff;
+}
+
+#sort {
+    padding: 10px 15px;
+    border: 2px solid #ddd;
+    border-radius: 25px;
+    font-size: 16px;
+    background-color: white;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+#sort:focus {
+    border-color: #007bff;
+}
+
+#images-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+    padding: 20px;
+}
+
+.image-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.3s ease;
+}
+
+.image-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.image-card img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.favorite {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.8);
+    padding: 8px;
+    border-radius: 50%;
+    font-size: 20px;
+    transition: transform 0.2s ease;
+}
+
+.favorite:hover {
+    transform: scale(1.1);
+}
