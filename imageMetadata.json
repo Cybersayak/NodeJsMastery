@@ -1,0 +1,14 @@
+{
+    "durgama.jpg": {
+        "tags": ["pre-puja"],
+        "location": "Kumortuli"
+    },
+    "DurgaPuja.jpg": {
+        "tags": ["DurgaPuja", "Navaratri"],
+        "location": "West Bengal"
+    },
+    "neeru.jpeg": {
+        "tags": ["Punjabi", "Kudi"],
+        "location": "Punjab"
+    }
+}

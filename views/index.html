@@ -9,18 +9,23 @@
 </head>
 <body>
     <div class="container">
-        
+        <header class="gallery-header">
+            <h1>My Photo Gallery</h1>
+            <p class="subtitle">Capture moments, preserve memories</p>
+        </header>
+
         <div class="controls-wrapper">
             <div class="controls">
                 <input type="text" id="search" placeholder="Search images...">
                 <select id="sort">
                     <option value="date">Sort by Date</option>
                     <option value="name">Sort by Name</option>
+                    <option value="tags">Sort by Tags</option>
+                    <option value="location">Sort by Location</option>
                 </select>
             </div>
         </div>
 
-        
         <div id="gallery">
             <div id="images-container"></div>
         </div>
