@@ -35,7 +35,7 @@ function displayImages(images) {
         const imgHtml = `
             <img src="${image.src}" 
                  alt="${image.name}"
-                 onerror="this.onerror=null; this.src='/path/to/fallback-image.jpg';"
+                 onerror="this.onerror=null; this.src='/images/fallback.jpg';"
                  loading="lazy">
         `;
         
@@ -130,107 +130,141 @@ window.addEventListener('DOMContentLoaded', async () => {
     displayImages(images);
 });
 
-const clientCode = `
-// WebSocket Connection
+let ws;
+let wsReconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
-const ws = new WebSocket('ws://localhost:3000');
+function connectWebSocket() {
+    ws = new WebSocket('ws://' + window.location.host);
 
-ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    switch (data.type) {
-        case 'new-image':
-            addImageToGallery(data.data);
-            break;
-        case 'favorite-update':
-            updateFavoriteStatus(data.data);
-            break;
-    }
-};
+    ws.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            switch (data.type) {
+                case 'new-image':
+                    addImageToGallery(data.data);
+                    break;
+                case 'favorite-update':
+                    updateFavoriteStatus(data.data);
+                    break;
+            }
+        } catch (error) {
+            console.error('WebSocket message error:', error);
+        }
+    };
 
-ws.onerror = (error) => {
-    console.error('WebSocket error:', error);
-};
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
 
-ws.onclose = () => {
-    console.log('WebSocket connection closed');
-    // Implement reconnection logic if needed
-};
+    ws.onclose = () => {
+        console.log('WebSocket connection closed');
+        // Implement reconnection logic
+        if (wsReconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            wsReconnectAttempts++;
+            console.log(`Attempting to reconnect (${wsReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+            setTimeout(connectWebSocket, 3000); // Try to reconnect after 3 seconds
+        } else {
+            console.error('Max reconnection attempts reached');
+        }
+    };
 
-// Infinite Scrolling
+    ws.onopen = () => {
+        console.log('WebSocket connected');
+        wsReconnectAttempts = 0; // Reset reconnection attempts on successful connection
+    };
+}
 
-let page = 1;
-let loading = false;
-
-window.addEventListener('scroll', () => {
-    if (loading) return;
-    
-    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000) {
-        loading = true;
-        loadMoreImages(page++).then(() => {
-            loading = false;
-        });
-    }
+// Initialize WebSocket connection when the page loads
+window.addEventListener('DOMContentLoaded', () => {
+    connectWebSocket();
 });
 
-// Drag and Drop Upload
-const dropZone = document.getElementById('drop-zone');
+// Add image to gallery when new image is uploaded
+function addImageToGallery(imageData) {
+    images.push(imageData);
+    displayImages(images);
+}
 
-dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('drag-over');
-});
-
-dropZone.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('drag-over');
-    
-    const files = Array.from(e.dataTransfer.files);
-    for (const file of files) {
-        if (file.type.startsWith('image/')) {
-            await uploadImage(file);
-        }
+// Update favorite status when changed
+function updateFavoriteStatus(data) {
+    const image = images.find(img => img.name === data.imageName);
+    if (image) {
+        image.favorite = data.isFavorite;
+        displayImages(images);
     }
-});
+}
 
-// Image Processing UI
-function setupImageProcessing() {
-    const processingForm = document.getElementById('processing-form');
-    
-    processingForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+// Upload image function for drag and drop
+async function uploadImage(file) {
+    try {
+        const formData = new FormData();
+        formData.append('image', file);
         
-        const operations = [];
-        if (e.target.resize.checked) {
-            operations.push({
-                type: 'resize',
-                width: parseInt(e.target.width.value),
-                height: parseInt(e.target.height.value),
-                fit: e.target.fit.value
-            });
-        }
-        
-        if (e.target.rotate.checked) {
-            operations.push({
-                type: 'rotate',
-                angle: parseInt(e.target.angle.value)
-            });
-        }
-        
-        const response = await fetch('/api/process-image', {
+        const response = await fetch('/api/upload', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                imageId: currentImageId,
-                operations
-            })
+            body: formData
         });
         
         const result = await response.json();
         if (result.success) {
-            showProcessedImage(result.processedImageUrl);
+            addImageToGallery(result.data);
+        } else {
+            console.error('Upload failed:', result.error);
+        }
+    } catch (error) {
+        console.error('Error uploading image:', error);
+    }
+}
+
+// Load more images for infinite scrolling
+async function loadMoreImages(page) {
+    try {
+        const response = await fetch(`/api/images?page=${page}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const newImages = await response.json();
+        images = [...images, ...newImages];
+        displayImages(images);
+    } catch (error) {
+        console.error('Error loading more images:', error);
+    }
+}
+
+// Add drag and drop functionality
+function setupDragAndDrop() {
+    const dropZone = document.getElementById('drop-zone');
+    if (!dropZone) return;
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        
+        const files = Array.from(e.dataTransfer.files);
+        for (const file of files) {
+            if (file.type.startsWith('image/')) {
+                await uploadImage(file);
+            }
         }
     });
 }
-`;
+
+// Initialize all features when the page loads
+window.addEventListener('DOMContentLoaded', async () => {
+    images = await fetchImages();
+    displayImages(images);
+    connectWebSocket();
+    setupDragAndDrop();
+    setupImageProcessing();
+});
+

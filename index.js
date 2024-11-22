@@ -1,19 +1,20 @@
-const express = require('express');
-const fs = require('fs');
+const fs = require('fs').promises;
+//const fs = require('fs');
 const path = require('path');
 
 const multer = require('multer');
 const sharp = require('sharp');
-const fs = require('fs').promises;
-const path = require('path');
+
 const crypto = require('crypto');
 const WebSocket = require('ws');
 const http = require('http');
 
+
+
+const express = require('express');
 const app = express();
 const PORT = 3000;
 
-app.use('/images', express.static(path.join(__dirname, 'public/images')));
 app.use(express.static('public')); 
 
 app.get('/', (req, res) => {
@@ -22,19 +23,15 @@ app.get('/', (req, res) => {
 
 const imageMetadata = require('./imageMetadata.json');
 
-app.get('/api/images', (req, res) => {
+app.get('/api/images', async (req, res) => {
     const imageDir = path.join(__dirname, 'public/images');
     
-    // Add directory creation if it doesn't exist
-    if (!fs.existsSync(imageDir)) {
-        fs.mkdirSync(imageDir, { recursive: true });
-    }
-
-    fs.readdir(imageDir, (err, files) => {
-        if (err) {
-            console.error('Error reading directory:', err);
-            return res.status(500).send('Error reading image files');
-        }
+    try {
+        // Check if directory exists
+        await fs.access(imageDir);
+        
+        // Read directory
+        const files = await fs.readdir(imageDir);
         
         // Filter for image files
         const imageFiles = files.filter(file => {
@@ -42,32 +39,50 @@ app.get('/api/images', (req, res) => {
             return ['.jpg', '.jpeg', '.png', '.gif'].includes(ext);
         });
 
-        try {
-            const images = imageFiles.map(file => {
-                // Get metadata from JSON file or use defaults
-                const metadata = imageMetadata[file] || {};
-                
-                return {
-                    src: `/images/${encodeURIComponent(file)}`,
-                    name: file,
-                    date: fs.statSync(path.join(imageDir, file)).mtime,
-                    favorite: false,
-                    tags: metadata.tags || [],
-                    location: metadata.location || null
-                };
-            });
-            res.json(images);
-        } catch (error) {
-            console.error('Error processing images:', error);
-            res.status(500).send('Error processing image files');
-        }
-    });
+        // Get file stats
+        const images = await Promise.all(imageFiles.map(async file => {
+            const metadata = imageMetadata[file] || {};
+            const stats = await fs.stat(path.join(imageDir, file));
+            
+            return {
+                src: `/images/${file}`,
+                name: file,
+                date: stats.mtime,
+                favorite: false,
+                tags: metadata.tags || [],
+                location: metadata.location || null
+            };
+        }));
+
+        res.json(images);
+    } catch (error) {
+        console.error('Error processing images:', error);
+        res.status(500).json({ error: 'Error processing image files' });
+    }
 });
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-server.listen(PORT, () => {
+async function initializeDirectories() {
+    const dirs = [
+        path.join(__dirname, 'public/images'),
+        path.join(__dirname, 'public/images/thumbnails'),
+        path.join(__dirname, 'data')
+    ];
+
+    for (const dir of dirs) {
+        try {
+            await fs.access(dir);
+        } catch {
+            await fs.mkdir(dir, { recursive: true });
+            console.log(`Created directory: ${dir}`);
+        }
+    }
+}
+
+server.listen(PORT, async () => {
+    await initializeDirectories();
     console.log(`Server running on http://localhost:${PORT}`);
 }).on('error', (err) => {
     console.error('Failed to start server:', err);
@@ -76,11 +91,10 @@ server.listen(PORT, () => {
 // 1. Enhanced Image Upload with Processing
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'public/images/uploads')
+        cb(null, 'public/images')
     },
     filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname))
+        cb(null, file.originalname)
     }
 });
 
@@ -127,17 +141,33 @@ async function processImage(req, res, next) {
 }
 
 // 3. Real-time Gallery Updates using WebSocket
+wss.on('error', (error) => {
+    console.error('WebSocket Server Error:', error);
+});
+
 wss.on('connection', (ws) => {
     console.log('New client connected');
     
     ws.on('message', (message) => {
-        const data = JSON.parse(message);
-        // Broadcast updates to all clients
-        wss.clients.forEach((client) => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify(data));
-            }
-        });
+        try {
+            const data = JSON.parse(message);
+            // Broadcast updates to all clients
+            wss.clients.forEach((client) => {
+                if (client !== ws && client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify(data));
+                }
+            });
+        } catch (error) {
+            console.error('WebSocket message error:', error);
+        }
+    });
+
+    ws.on('error', (error) => {
+        console.error('WebSocket client error:', error);
+    });
+
+    ws.on('close', () => {
+        console.log('Client disconnected');
     });
 });
 
